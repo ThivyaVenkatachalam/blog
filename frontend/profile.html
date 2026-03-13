@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Blog - Profile</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <nav class="navbar">
+    <span class="logo">✍️ BlogAPI</span>
+    <div class="nav-links">
+      <a href="index.html">← All Posts</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="form-card">
+    <div class="form-title">My Profile</div>
+
+    <!-- Profile info -->
+    <div id="profile-info" style="margin-bottom:1.5rem;padding:1rem;background:#f8fafc;border-radius:8px;font-size:0.9rem">
+      Loading...
+    </div>
+
+    <!-- Update name -->
+    <div class="form-group">
+      <label>Update Name</label>
+      <input type="text" id="new-name" placeholder="New name"/>
+    </div>
+    <button class="btn btn-primary" onclick="updateName()" style="width:100%;margin-bottom:0.5rem">
+      Update Name
+    </button>
+    <div id="name-msg"></div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0"/>
+
+    <!-- Update password -->
+    <div class="form-group">
+      <label>Current Password</label>
+      <input type="password" id="old-password" placeholder="Current password"/>
+    </div>
+    <div class="form-group">
+      <label>New Password</label>
+      <input type="password" id="new-password" placeholder="New password"/>
+    </div>
+    <button class="btn btn-primary" onclick="updatePassword()" style="width:100%">
+      Update Password
+    </button>
+    <div id="pass-msg"></div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    // ── Load profile ──────────────────────────────────────────
+    async function loadProfile() {
+      try {
+        const res  = await fetch('http://localhost:4000/api/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        console.log('Profile response:', data); // debug
+
+        if (!data.success) {
+          document.getElementById('profile-info').textContent = 'Failed to load profile';
+          return;
+        }
+
+        const u = data.data;
+        document.getElementById('profile-info').innerHTML = `
+          <p style="margin-bottom:6px"><strong>Name:</strong> ${u.name}</p>
+          <p style="margin-bottom:6px"><strong>Email:</strong> ${u.email}</p>
+          <p><strong>Joined:</strong> ${new Date(u.created_at).toLocaleDateString()}</p>
+        `;
+        document.getElementById('new-name').value = u.name;
+
+      } catch (err) {
+        console.error('Profile error:', err);
+        document.getElementById('profile-info').textContent = 'Error loading profile';
+      }
+    }
+
+    // ── Update name ───────────────────────────────────────────
+    async function updateName() {
+      const name  = document.getElementById('new-name').value;
+      const msgEl = document.getElementById('name-msg');
+
+      if (!name.trim()) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Name cannot be empty!';
+        return;
+      }
+
+      try {
+        const res  = await fetch('http://localhost:4000/api/profile/update-name', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+
+        msgEl.className   = `alert ${data.success ? 'alert-success' : 'alert-error'}`;
+        msgEl.textContent = data.message;
+
+        if (data.success) loadProfile();
+
+      } catch (err) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Something went wrong!';
+      }
+    }
+
+    // ── Update password ───────────────────────────────────────
+    async function updatePassword() {
+      const old_password = document.getElementById('old-password').value;
+      const new_password = document.getElementById('new-password').value;
+      const msgEl        = document.getElementById('pass-msg');
+
+      if (!old_password || !new_password) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Both password fields are required!';
+        return;
+      }
+
+      if (new_password.length < 6) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'New password must be at least 6 characters!';
+        return;
+      }
+
+      try {
+        const res  = await fetch('http://localhost:4000/api/profile/update-password', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ old_password, new_password })
+        });
+        const data = await res.json();
+
+        msgEl.className   = `alert ${data.success ? 'alert-success' : 'alert-error'}`;
+        msgEl.textContent = data.message;
+
+        if (data.success) {
+          document.getElementById('old-password').value = '';
+          document.getElementById('new-password').value = '';
+        }
+
+      } catch (err) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Something went wrong!';
+      }
+    }
+
+    // ── Logout ────────────────────────────────────────────────
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = 'login.html';
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

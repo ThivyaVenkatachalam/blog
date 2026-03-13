@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Blog - All Posts</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <nav class="navbar">
+    <span class="logo">✍️ Blog</span>
+    <div class="nav-links">
+  <span id="welcome"></span>
+  <a href="myposts.html">My Posts</a>
+  <a href="create.html" class="btn btn-primary">+ New Post</a>
+  <a href="profile.html">Profile</a>
+  <a href="#" onclick="logout()">Logout</a>
+</div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1 class="page-title">All Posts</h1>
+    </div>
+
+    <!-- Search bar -->
+    <div class="search-bar">
+      <input type="text" id="search" placeholder="🔍 Search posts..." oninput="searchPosts()"/>
+    </div>
+
+    <div id="posts"></div>
+  </div>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!localStorage.getItem('token')) window.location.href = 'login.html';
+    if (user) document.getElementById('welcome').textContent = `Hi, ${user.name}`;
+
+    let searchTimer;
+    function searchPosts() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => loadPosts(), 400);
+    }
+
+    async function loadPosts() {
+      const search    = document.getElementById('search').value;
+      const url       = search
+        ? `http://localhost:4000/api/posts?search=${search}`
+        : `http://localhost:4000/api/posts`;
+      const res       = await fetch(url);
+      const data      = await res.json();
+      const container = document.getElementById('posts');
+
+      if (!data.data.length) {
+        container.innerHTML = '<p style="color:var(--muted)">No posts found.</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      data.data.forEach(post => {
+        container.innerHTML += `
+          <div class="post-card">
+            <div class="post-title" onclick="window.location.href='post.html?id=${post.id}'">${post.title}</div>
+            <div class="post-content">${post.content}</div>
+            <div class="post-meta">
+              <div class="meta-left">
+                <span>By <strong>${post.author}</strong></span>
+                <span>${new Date(post.created_at).toLocaleDateString()}</span>
+                <span class="comment-count">💬 ${post.comment_count} comments</span>
+              </div>
+              <div class="meta-right">
+                ${user && post.author === user.name ? `
+                  <button class="btn btn-danger" onclick="deletePost(${post.id})">Delete</button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    async function deletePost(id) {
+      if (!confirm('Delete this post?')) return;
+      const res  = await fetch(`http://localhost:4000/api/posts/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const data = await res.json();
+      if (data.success) loadPosts();
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = 'login.html';
+    }
+
+    loadPosts();
+  </script>
+</body>
+</html>

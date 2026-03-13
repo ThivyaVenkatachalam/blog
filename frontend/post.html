@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Blog - Post</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <nav class="navbar">
+    <span class="logo">✍️ BlogAPI</span>
+    <div class="nav-links">
+      <a href="index.html">← All Posts</a>
+      <a href="profile.html">Profile</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Post detail -->
+    <div id="post-detail"></div>
+
+    <!-- Comments section -->
+    <div class="post-card" style="margin-top:1rem">
+      <h3 style="margin-bottom:1rem">💬 Comments</h3>
+      <div id="comments"></div>
+
+      <div class="comment-input-wrap" style="margin-top:1rem">
+        <input
+          type="text"
+          id="comment-input"
+          placeholder="Write a comment..."
+          onkeypress="handleEnter(event)"
+        />
+        <button class="btn btn-primary" onclick="addComment()">Post</button>
+      </div>
+      <div id="comment-msg"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const token  = localStorage.getItem('token');
+    const user   = JSON.parse(localStorage.getItem('user'));
+    const postId = new URLSearchParams(window.location.search).get('id');
+
+    if (!postId) window.location.href = 'index.html';
+
+    function handleEnter(event) {
+      if (event.key === 'Enter') addComment();
+    }
+
+    // ── Load post ─────────────────────────────────────────────
+    async function loadPost() {
+      try {
+        const res  = await fetch(`http://localhost:4000/api/posts/${postId}`);
+        const data = await res.json();
+
+        if (!data.success) {
+          window.location.href = 'index.html';
+          return;
+        }
+
+        const post         = data.data;
+        window.currentPost = post;
+        document.title     = post.title;
+
+        document.getElementById('post-detail').innerHTML = `
+          <div class="post-card">
+
+            <!-- Post view -->
+            <div id="post-view">
+              <h1 style="font-size:1.8rem;margin-bottom:8px">${post.title}</h1>
+              <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem">
+                By <strong>${post.author}</strong>
+                · ${new Date(post.created_at).toLocaleDateString()}
+              </p>
+              <p style="line-height:1.8;white-space:pre-wrap">${post.content}</p>
+
+              <!-- Like button -->
+              <div style="margin-top:1.5rem;display:flex;align-items:center;gap:1rem">
+                <button class="btn btn-outline" id="like-btn" onclick="toggleLike()">
+                  🤍 Like
+                </button>
+                <span id="like-count" style="color:var(--muted);font-size:0.9rem"></span>
+              </div>
+
+              ${user && post.author === user.name ? `
+                <div style="margin-top:1rem;display:flex;gap:0.5rem">
+                  <button class="btn btn-outline" onclick="showEditForm()">✏️ Edit</button>
+                  <button class="btn btn-danger"  onclick="deletePost()">Delete Post</button>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Edit form (hidden by default) -->
+            <div id="edit-form" style="display:none">
+              <div class="form-group" style="margin-bottom:1rem">
+                <label>Title</label>
+                <input type="text" id="edit-title"/>
+              </div>
+              <div class="form-group" style="margin-bottom:1rem">
+                <label>Content</label>
+                <textarea id="edit-content" style="min-height:150px"></textarea>
+              </div>
+              <div style="display:flex;gap:0.5rem">
+                <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+                <button class="btn btn-outline" onclick="cancelEdit()">Cancel</button>
+              </div>
+              <div id="edit-msg" style="margin-top:0.5rem"></div>
+            </div>
+
+          </div>
+        `;
+
+        // Load likes after post is rendered
+        loadLikes();
+
+      } catch (err) {
+        console.error('Error loading post:', err);
+      }
+    }
+
+    // ── Load likes ────────────────────────────────────────────
+    async function loadLikes() {
+      if (!token) return;
+      try {
+        const res  = await fetch(`http://localhost:4000/api/posts/${postId}/like`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        const btn   = document.getElementById('like-btn');
+        const count = document.getElementById('like-count');
+
+        if (btn) {
+          btn.textContent      = data.liked ? '❤️ Liked' : '🤍 Like';
+          btn.style.background = data.liked ? 'var(--accent)' : '';
+          btn.style.color      = data.liked ? '#fff' : '';
+        }
+        if (count) {
+          count.textContent = `${data.likes} like${data.likes !== 1 ? 's' : ''}`;
+        }
+      } catch (err) {
+        console.error('Error loading likes:', err);
+      }
+    }
+
+    // ── Toggle like ───────────────────────────────────────────
+    async function toggleLike() {
+      if (!token) { window.location.href = 'login.html'; return; }
+      try {
+        const res  = await fetch(`http://localhost:4000/api/posts/${postId}/like`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        const btn   = document.getElementById('like-btn');
+        const count = document.getElementById('like-count');
+
+        btn.textContent      = data.liked ? '❤️ Liked' : '🤍 Like';
+        btn.style.background = data.liked ? 'var(--accent)' : '';
+        btn.style.color      = data.liked ? '#fff' : '';
+        count.textContent    = `${data.likes} like${data.likes !== 1 ? 's' : ''}`;
+
+      } catch (err) {
+        console.error('Error toggling like:', err);
+      }
+    }
+
+    // ── Show edit form ────────────────────────────────────────
+    function showEditForm() {
+      const post = window.currentPost;
+      document.getElementById('post-view').style.display  = 'none';
+      document.getElementById('edit-form').style.display  = 'block';
+      document.getElementById('edit-title').value         = post.title;
+      document.getElementById('edit-content').value       = post.content;
+    }
+
+    // ── Cancel edit ───────────────────────────────────────────
+    function cancelEdit() {
+      document.getElementById('post-view').style.display  = 'block';
+      document.getElementById('edit-form').style.display  = 'none';
+    }
+
+    // ── Save edit ─────────────────────────────────────────────
+    async function saveEdit() {
+      const title   = document.getElementById('edit-title').value;
+      const content = document.getElementById('edit-content').value;
+      const msgEl   = document.getElementById('edit-msg');
+
+      if (!title.trim()) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Title cannot be empty!';
+        return;
+      }
+      if (!content.trim()) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Content cannot be empty!';
+        return;
+      }
+
+      try {
+        const res  = await fetch(`http://localhost:4000/api/posts/${postId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ title, content })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          msgEl.className   = 'alert alert-success';
+          msgEl.textContent = 'Post updated successfully!';
+          setTimeout(() => { cancelEdit(); loadPost(); }, 1000);
+        } else {
+          msgEl.className   = 'alert alert-error';
+          msgEl.textContent = data.message;
+        }
+      } catch (err) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Something went wrong!';
+      }
+    }
+
+    // ── Load comments ─────────────────────────────────────────
+    async function loadComments() {
+      try {
+        const res  = await fetch(`http://localhost:4000/api/posts/${postId}/comments`);
+        const data = await res.json();
+        const el   = document.getElementById('comments');
+
+        if (!data.data.length) {
+          el.innerHTML = `
+            <p style="color:var(--muted);font-size:0.875rem">
+              No comments yet. Be the first!
+            </p>
+          `;
+          return;
+        }
+
+        el.innerHTML = data.data.map(c => `
+          <div class="comment">
+            <span class="comment-author">${c.author}</span>
+            ${c.content}
+            <span style="color:var(--muted);font-size:0.75rem;margin-left:8px">
+              ${new Date(c.created_at).toLocaleDateString()}
+            </span>
+            ${user && c.author === user.name ? `
+              <button
+                class="btn btn-danger"
+                style="float:right;padding:3px 10px;font-size:0.75rem"
+                onclick="deleteComment(${c.id})"
+              >Delete</button>
+            ` : ''}
+          </div>
+        `).join('');
+
+      } catch (err) {
+        console.error('Error loading comments:', err);
+      }
+    }
+
+    // ── Add comment ───────────────────────────────────────────
+    async function addComment() {
+      const input   = document.getElementById('comment-input');
+      const content = input.value.trim();
+      const msgEl   = document.getElementById('comment-msg');
+
+      msgEl.textContent = '';
+      msgEl.className   = '';
+
+      if (!token) { window.location.href = 'login.html'; return; }
+
+      if (!content) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Comment cannot be empty!';
+        return;
+      }
+
+      try {
+        const res  = await fetch(
+          `http://localhost:4000/api/posts/${postId}/comments`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ content })
+          }
+        );
+        const data = await res.json();
+
+        if (data.success) {
+          input.value       = '';
+          msgEl.textContent = '';
+          loadComments();
+        } else {
+          msgEl.className   = 'alert alert-error';
+          msgEl.textContent = data.message;
+        }
+      } catch (err) {
+        msgEl.className   = 'alert alert-error';
+        msgEl.textContent = 'Something went wrong. Try again.';
+      }
+    }
+
+    // ── Delete comment ────────────────────────────────────────
+    async function deleteComment(commentId) {
+      if (!confirm('Delete this comment?')) return;
+      try {
+        const res  = await fetch(
+          `http://localhost:4000/api/posts/${postId}/comments/${commentId}`,
+          {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          }
+        );
+        const data = await res.json();
+        if (data.success) loadComments();
+      } catch (err) {
+        console.error('Error deleting comment:', err);
+      }
+    }
+
+    // ── Delete post ───────────────────────────────────────────
+    async function deletePost() {
+      if (!confirm('Delete this post? This cannot be undone!')) return;
+      try {
+        const res  = await fetch(`http://localhost:4000/api/posts/${postId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) window.location.href = 'index.html';
+      } catch (err) {
+        console.error('Error deleting post:', err);
+      }
+    }
+
+    // ── Logout ────────────────────────────────────────────────
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = 'login.html';
+    }
+
+    // ── Init ──────────────────────────────────────────────────
+    loadPost();
+    loadComments();
+  </script>
+</body>
+</html>
