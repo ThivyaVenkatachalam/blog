@@ -140,7 +140,7 @@ const getMyPosts = async (req, res) => {
       LEFT JOIN comments ON comments.post_id = posts.id
       LEFT JOIN likes    ON likes.post_id    = posts.id
       WHERE posts.user_id = ?
-      GROUP BY posts.id
+      GROUP BY posts.idd
       ORDER BY posts.created_at DESC
     `, [req.user.id]);
 
