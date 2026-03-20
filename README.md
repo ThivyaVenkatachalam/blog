@@ -324,8 +324,4 @@ Authorization: Bearer <your_token>
 
 ---
 
-## 👩‍💻 Built By
 
-**Thivya Venkatachalam**
-
-- GitHub: [@ThivyaVenkatachalam](https://github.com/ThivyaVenkatachalam)
